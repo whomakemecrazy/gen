@@ -1,9 +1,9 @@
 package main
 
 type Package struct {
-  Pkg string
-  Service string
-  Entity string
+	Pkg     string
+	Service string
+	Entity  string
 }
 
 var code = `package {{ .Pkg }}
@@ -52,7 +52,7 @@ func (items {{ .Entity }}s) Fmap(fn Handler) {{ .Entity }}s {
   for item := range ch {
     switch {
     case item.Fail():
-      return item.SetError(item.Error)
+      return items.SetError(item.Error)
     default:
       result = append(result, item.Value)
     }
