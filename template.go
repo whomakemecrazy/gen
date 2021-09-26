@@ -6,6 +6,58 @@ type Package struct {
 	Entity  string
 }
 
+var hander = `package {{ .Pkg }}
+import (
+  . "{{ .Service }}/domain/error"
+  . "{{ .Service }}/domain/model"
+  "sync"
+)
+var Fail = func(fn Handler) Handler {
+	return func(item Item) Item {
+		var item2 Item
+		switch {
+		case item.Fail():
+			item2 = fn(item)
+		case item.Success():
+			item2 = item
+		}
+		return item2
+	}
+}
+var Success = func(fn Handler) Handler {
+	return func(item Item) Item {
+		var item2 Item
+		switch {
+		case item.Fail():
+			item2 = item
+		case item.Success():
+			item2 = fn(item)
+		}
+		return item2
+	}
+}
+var Commit = func(commit func() IError) Handler {
+	return func(item Item) Item {
+		switch {
+		case item.Success():
+			err := commit()
+			item.SetError(err)
+		}
+		return item
+	}
+}
+var Rollback = func(rollback func() IError) Handler {
+	return func(item Item) Item {
+		switch {
+		case item.Fail():
+			err := rollback()
+			item.SetError(err)
+		}
+		return item
+	}
+}
+`
+
 var code = `package {{ .Pkg }}
 
 import (
@@ -108,6 +160,79 @@ func (i Items) Success() bool {
     return false
   }
   return true
+}
+func (i Items) SetError(err IError) Items {
+	if err != nil {
+		i.Error = err
+	}
+	return i
+}
+func (i Items) SetValues(items ...Item) Items {
+	i.Value = append(i.Value, items...)
+	return i
+}
+func (i Items) Fmap(fn Handler) Items {
+	if i.Error != nil {
+		return i
+	}
+	ch := make(chan Item, len(i.Value))
+	wg := new(sync.WaitGroup)
+	wg.Add(len(i.Value))
+	for _, v := range i.Value {
+		go func(v Item) {
+			defer wg.Done()
+			ch <- fn(v)
+		}(v)
+	}
+	wg.Wait()
+	close(ch)
+
+	result := make([]Item, 0, len(i.Value))
+
+	for item := range ch {
+		switch {
+		case item.Fail():
+		  return i.SetError(item.Error)
+		default:
+			result = append(result, item)
+		}
+	}
+  
+  i2 := i
+	return i2.SetValues(result...)
+}
+func (i Items) Filter(fn Filter) Items {
+  switch {
+  case i.Fail():
+    return i
+  }
+  ch := make(chan Item, len(i.Value))
+  wg := new(sync.WaitGroup)
+  wg.Add(len(i.Value))
+  for _, v := range i.Value{
+    go func(v Item) {
+      defer wg.Done()
+      if fn(v) {
+        ch <- v
+      }
+    }(v)
+  }
+  wg.Wait()
+  close(ch)
+  result := make([]Item, 0, len(i.Value))
+  for item := range ch {
+    result = append(result, item)
+  }
+  i2 := i
+  return i2.SetValues(result...)
+}
+func NewItems(item... Item) Items {
+  items := Items{
+    Value: make([]Item,0, len(item)),
+    Error: IError,
+  }
+  items.Value = append(items.Value, item...)
+  return items
 }
 
 func NewItem(key {{ .Entity }}) Item {
