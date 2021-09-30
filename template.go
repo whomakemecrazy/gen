@@ -9,7 +9,6 @@ type Package struct {
 var hander = `package {{ .Pkg }}
 import (
   . "{{ .Service }}/domain/error"
-  . "{{ .Service }}/domain/model"
   "sync"
 )
 var Fail = func(fn Handler) Handler {
@@ -229,7 +228,7 @@ func (i Items) Filter(fn Filter) Items {
 func NewItems(item... Item) Items {
   items := Items{
     Value: make([]Item,0, len(item)),
-    Error: IError,
+    Error: nil,
   }
   items.Value = append(items.Value, item...)
   return items
