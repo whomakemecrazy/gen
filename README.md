@@ -11,7 +11,9 @@ Gen is a functional programming libaray generator for golang.
 
 When you run the command, some files are created in the location where you ran the command. (fp.go, $packageName.go)
 I usually run it from a domain directory.
+
 EX) user domain generate
+
 ``` gen -p user -s service -e User ```
 
 
